@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  image       String?
+  order       Int       @default(0)
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+}
+
+model Product {
+  id           String      @id @default(cuid())
+  name         String
+  slug         String      @unique
+  description  String?
+  price        Float
+  buyType      String      @default("checkout")
+  moq          Int         @default(1)
+  categoryId   String?
+  category     Category?   @relation(fields: [categoryId], references: [id])
+  image        String?
+  images       String?
+  supplier     String?
+  featured     Boolean     @default(false)
+  active       Boolean     @default(true)
+  colours      String?
+  printingType String?
+  specs        String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  priceTiers   PriceTier[]
+  orderItems   OrderItem[]
+}
+
+model PriceTier {
+  id        String   @id @default(cuid())
+  minQty    Int
+  price     Float
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  orderNumber   String      @unique
+  customerName  String
+  customerPhone String
+  status        String      @default("pending")
+  totalAmount   Float
+  paymentRef    String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  items         OrderItem[]
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productName String
+  quantity    Int
+  unitPrice   Float
+  totalPrice  Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Enquiry {
+  id            String   @id @default(cuid())
+  productName   String
+  customerName  String
+  customerPhone String
+  message       String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
