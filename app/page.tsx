@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import CartDrawer from "@/components/cart-drawer";
+import { useCartStore } from "@/lib/cart-store";
+
+const WHATSAPP_NUMBER = "254712345678"; // TODO: replace with your real WhatsApp business number
 
 type Category = { id: string; name: string; slug: string };
 type PriceTier = { minQty: number; price: number };
@@ -51,6 +55,10 @@ export default function Home() {
   const [category, setCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const items = useCartStore((s) => s.items);
+  const openCart = useCartStore((s) => s.openCart);
+  const addItem = useCartStore((s) => s.addItem);
+
   useEffect(() => {
     fetch("/api/categories")
       .then((r) => r.json())
@@ -78,7 +86,22 @@ export default function Home() {
           <h1 className="text-xl font-bold tracking-tight">
             Brand<span className="text-orange-600">Box</span>
           </h1>
-          <p className="text-sm text-neutral-500">Branded merchandise, Kenya</p>
+          <div className="flex items-center gap-3">
+            <p className="hidden text-sm text-neutral-500 sm:block">
+              Branded merchandise, Kenya
+            </p>
+            <button
+              onClick={openCart}
+              className="relative rounded-full border border-neutral-300 bg-white px-4 py-1.5 text-sm font-medium hover:border-neutral-500"
+            >
+              Cart
+              {items.length > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-orange-600 px-1 text-xs font-bold text-white">
+                  {items.length}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -153,13 +176,32 @@ export default function Home() {
                 </div>
                 <div className="mt-3">
                   {p.buyType === "checkout" ? (
-                    <button className="w-full rounded-lg bg-neutral-900 py-2 text-sm font-medium text-white hover:bg-neutral-700">
+                    <button
+                      onClick={() =>
+                        addItem({
+                          id: p.id,
+                          name: p.name,
+                          price: p.price,
+                          moq: p.moq,
+                          buyType: p.buyType,
+                          priceTiers: p.priceTiers,
+                        })
+                      }
+                      className="w-full rounded-lg bg-neutral-900 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+                    >
                       Add to Cart
                     </button>
                   ) : (
-                    <button className="w-full rounded-lg bg-green-600 py-2 text-sm font-medium text-white hover:bg-green-500">
+                    <a
+                      href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
+                        `Hello BrandBox! I'm interested in ${p.name} (MOQ ${p.moq}). Please share a quote.`
+                      )}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block w-full rounded-lg bg-green-600 py-2 text-center text-sm font-medium text-white hover:bg-green-500"
+                    >
                       Enquire on WhatsApp
-                    </button>
+                    </a>
                   )}
                 </div>
               </div>
@@ -167,6 +209,8 @@ export default function Home() {
           </div>
         )}
       </section>
+
+      <CartDrawer />
     </main>
   );
 }
