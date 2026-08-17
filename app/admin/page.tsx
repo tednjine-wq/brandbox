@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import AdminCategories from "@/components/admin-categories";
 import AdminProducts from "@/components/admin-products";
 
 type AdminOrder = {
