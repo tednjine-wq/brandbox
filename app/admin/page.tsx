@@ -166,6 +166,7 @@ export default function AdminPage() {
           </table>
         </div>
       </section>
+      <AdminCategories />
             <AdminProducts />
     </main>
   );
