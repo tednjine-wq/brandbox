@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import AdminProducts from "@/components/admin-products";
 
 type AdminOrder = {
   id: string;
@@ -164,6 +165,7 @@ export default function AdminPage() {
           </table>
         </div>
       </section>
+            <AdminProducts />
     </main>
   );
 }
