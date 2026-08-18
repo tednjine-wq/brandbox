@@ -47,6 +47,7 @@ export async function POST(request: Request) {
     name,
     slug,
     description: String(body.description ?? "") || null,
+    image: String(body.image ?? "") || null,
     price,
     moq,
     buyType: body.buyType === "enquiry" ? "enquiry" : "checkout",
@@ -70,6 +71,9 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ product });
   } catch {
-    return NextResponse.json({ error: "Save failed (a product with this slug may exist)" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Save failed (a product with this slug may exist)" },
+      { status: 400 }
+    );
   }
 }

@@ -8,6 +8,7 @@ type Product = {
   id: string;
   name: string;
   description: string | null;
+  image: string | null;
   price: number;
   moq: number;
   buyType: string;
@@ -27,6 +28,7 @@ const EMPTY_FORM = {
   id: "",
   name: "",
   description: "",
+  image: "",
   price: "",
   moq: "",
   buyType: "checkout",
@@ -47,6 +49,7 @@ export default function AdminProducts() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [form, setForm] = useState<any>(null);
   const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   async function load() {
     const [p, c] = await Promise.all([
@@ -72,6 +75,7 @@ export default function AdminProducts() {
       id: p.id,
       name: p.name,
       description: p.description ?? "",
+      image: p.image ?? "",
       price: String(p.price),
       moq: String(p.moq),
       buyType: p.buyType,
@@ -101,6 +105,23 @@ export default function AdminProducts() {
     setForm({ ...form, tiers: form.tiers.filter((_: any, idx: number) => idx !== i) });
   }
 
+  async function uploadPhoto(e: any) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setUploading(true);
+    setError("");
+    const fd = new FormData();
+    fd.append("file", f);
+    const res = await fetch("/api/upload", { method: "POST", body: fd });
+    const data = await res.json();
+    setUploading(false);
+    if (!res.ok) {
+      setError(data.error || "Upload failed");
+      return;
+    }
+    setForm({ ...form, image: data.url });
+  }
+
   async function save() {
     setError("");
     const res = await fetch("/api/admin/products", {
@@ -110,6 +131,7 @@ export default function AdminProducts() {
         id: form.id || undefined,
         name: form.name,
         description: form.description,
+        image: form.image || null,
         price: Number(form.price),
         moq: Number(form.moq),
         buyType: form.buyType,
@@ -229,6 +251,39 @@ export default function AdminProducts() {
               </label>
             </div>
           </div>
+
+          <div className="mt-3">
+            <p className="text-sm font-medium">Product photo</p>
+            <div className="mt-2 flex items-center gap-3">
+              {form.image ? (
+                <img
+                  src={form.image}
+                  alt="preview"
+                  className="h-16 w-16 rounded-lg border border-neutral-300 object-cover"
+                />
+              ) : (
+                <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-dashed border-neutral-300 text-xs text-neutral-400">
+                  No photo
+                </div>
+              )}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={uploadPhoto}
+                className="text-sm"
+              />
+              {form.image && (
+                <button
+                  onClick={() => setForm({ ...form, image: "" })}
+                  className="text-xs text-red-500 hover:underline"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            {uploading && <p className="mt-1 text-xs text-neutral-500">Uploading...</p>}
+          </div>
+
           <textarea
             className={`${inp} mt-3`}
             rows={3}
@@ -301,7 +356,18 @@ export default function AdminProducts() {
           <tbody>
             {products.map((p) => (
               <tr key={p.id} className="border-b border-neutral-100 last:border-0">
-                <td className="px-4 py-3 font-medium">{p.name}</td>
+                <td className="px-4 py-3 font-medium">
+                  <div className="flex items-center gap-2">
+                    {p.image && (
+                      <img
+                        src={p.image}
+                        alt=""
+                        className="h-8 w-8 rounded border border-neutral-200 object-cover"
+                      />
+                    )}
+                    {p.name}
+                  </div>
+                </td>
                 <td className="px-4 py-3 text-neutral-600">{p.category?.name ?? "—"}</td>
                 <td className="px-4 py-3">KES {p.price.toLocaleString()}</td>
                 <td className="px-4 py-3">{p.moq}</td>
