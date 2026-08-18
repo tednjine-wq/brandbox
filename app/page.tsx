@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import CartDrawer from "@/components/cart-drawer";
 import { useCartStore } from "@/lib/cart-store";
 
@@ -13,6 +13,7 @@ type Product = {
   name: string;
   slug: string;
   description: string | null;
+  image: string | null;
   price: number;
   moq: number;
   buyType: string;
@@ -24,8 +25,8 @@ type Product = {
 function pill(active: boolean) {
   return `whitespace-nowrap rounded-full border px-4 py-1.5 text-sm font-medium transition ${
     active
-      ? "border-neutral-900 bg-neutral-900 text-white"
-      : "border-neutral-300 bg-white text-neutral-700 hover:border-neutral-500"
+      ? "border-brand bg-brand text-white"
+      : "border-line bg-white text-ink-muted hover:border-ink-muted"
   }`;
 }
 
@@ -48,21 +49,41 @@ function bestPrice(p: Product) {
   return p.price;
 }
 
+function tierRows(p: Product): PriceTier[] {
+  const tiers = [...p.priceTiers].sort((a, b) => a.minQty - b.minQty);
+  if (tiers.length === 0) return [];
+  const first = tiers[0];
+  const last = tiers[tiers.length - 1];
+  return last.minQty === first.minQty ? [first] : [first, last];
+}
+
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hero, setHero] = useState({ products: 0, categories: 0 });
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const items = useCartStore((s) => s.items);
   const openCart = useCartStore((s) => s.openCart);
   const addItem = useCartStore((s) => s.addItem);
+  const cartCount = items.length;
 
   useEffect(() => {
     fetch("/api/categories")
       .then((r) => r.json())
       .then((d) => setCategories(d.categories));
+
+    // Hero counts: only categories that actually have products (fixes the "60 categories" bug)
+    fetch("/api/products")
+      .then((r) => r.json())
+      .then((d) => {
+        const all: Product[] = d.products ?? [];
+        const stocked = new Set(all.map((p) => p.category?.id).filter(Boolean));
+        setHero({ products: all.length, categories: stocked.size });
+      });
   }, []);
 
   useEffect(() => {
@@ -79,49 +100,66 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [search, category]);
 
+  // "/" or Ctrl/Cmd+K focuses the search command bar
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const t = e.target as HTMLElement;
+      const typing = t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement;
+      if ((e.key === "/" && !typing) || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k")) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
-    <main className="min-h-screen bg-neutral-50 text-neutral-900">
-      <header className="sticky top-0 z-10 border-b border-neutral-200 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <h1 className="text-xl font-bold tracking-tight">
-            Brand<span className="text-orange-600">Box</span>
+    <main className="min-h-screen bg-paper text-ink">
+      <header className="sticky top-0 z-10 bg-ink text-white">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3">
+          <h1 className="font-display text-xl font-bold tracking-tight">
+            Brand<span className="text-brand">Box</span>
           </h1>
-          <div className="flex items-center gap-3">
-            <p className="hidden text-sm text-neutral-500 sm:block">
-              Branded merchandise, Kenya
-            </p>
-            <button
-              onClick={openCart}
-              className="relative rounded-full border border-neutral-300 bg-white px-4 py-1.5 text-sm font-medium hover:border-neutral-500"
-            >
-              Cart
-              {items.length > 0 && (
-                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-orange-600 px-1 text-xs font-bold text-white">
-                  {items.length}
-                </span>
-              )}
-            </button>
+
+          <div className="relative order-3 w-full sm:order-2 sm:ml-auto sm:w-auto sm:max-w-md sm:flex-1">
+            <input
+              ref={searchRef}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search mugs, pens, tote bags..."
+              className="w-full rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm outline-none placeholder:text-white/40 focus:border-brand"
+            />
+            <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded border border-white/20 px-1.5 text-[10px] text-white/50">
+              /
+            </kbd>
           </div>
+
+          <button
+            onClick={openCart}
+            className="relative ml-auto rounded-full border border-white/20 px-4 py-1.5 text-sm font-medium transition hover:border-brand sm:ml-0"
+          >
+            Cart
+            {cartCount > 0 && (
+              <span
+                key={cartCount}
+                className="animate-bump absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1 text-xs font-bold text-white"
+              >
+                {cartCount}
+              </span>
+            )}
+          </button>
         </div>
       </header>
 
-      <section className="mx-auto max-w-6xl px-4 pb-4 pt-8">
-        <h2 className="text-2xl font-bold sm:text-3xl">
+      <section className="mx-auto max-w-6xl px-4 pb-6 pt-10">
+        <h2 className="font-display text-3xl font-bold sm:text-4xl">
           Promotional products with transparent bulk pricing
         </h2>
-        <p className="mt-2 text-neutral-600">
-          Browse {products.length} products across {categories.length} categories.
+        <p className="mt-2 text-ink-muted">
+          {hero.products} products across {hero.categories} categories.
         </p>
       </section>
-
-      <div className="mx-auto max-w-6xl px-4 pb-4">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search mugs, pens, tote bags..."
-          className="w-full rounded-full border border-neutral-300 bg-white px-4 py-2 text-sm outline-none focus:border-orange-500"
-        />
-      </div>
 
       <div className="mx-auto flex max-w-6xl gap-2 overflow-x-auto px-4 pb-6">
         <button onClick={() => setCategory(null)} className={pill(!category)}>
@@ -140,40 +178,65 @@ export default function Home() {
 
       <section className="mx-auto max-w-6xl px-4 pb-16">
         {loading ? (
-          <p className="py-20 text-center text-neutral-500">Loading products...</p>
+          <p className="py-20 text-center text-ink-muted">Loading products...</p>
         ) : products.length === 0 ? (
-          <p className="py-20 text-center text-neutral-500">
-            No products match your search.
-          </p>
+          <p className="py-20 text-center text-ink-muted">No products match your search.</p>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {products.map((p) => (
+            {products.map((p, i) => (
               <div
                 key={p.id}
-                className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm transition hover:shadow-md"
+                style={{ animationDelay: `${Math.min(i, 11) * 40}ms` }}
+                className="animate-fade-up relative rounded-xl border border-line bg-white p-4 transition hover:-translate-y-0.5 hover:border-brand"
               >
-                <div className="flex h-28 items-center justify-center rounded-lg bg-neutral-100 text-4xl">
-                  {emojiFor(p.category?.slug ?? undefined)}
-                </div>
-                <div className="mt-3 flex items-center justify-between">
-                  <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
-                    {p.category?.name}
-                  </span>
-                  {p.featured && (
-                    <span className="text-xs text-amber-600">★ Featured</span>
+                <span className={`stamp ${p.buyType === "checkout" ? "stamp-stock" : "stamp-order"}`}>
+                  {p.buyType === "checkout" ? "In stock" : "Made to order"}
+                </span>
+
+                <div className="flex h-28 items-center justify-center overflow-hidden rounded-lg border border-line bg-paper text-4xl">
+                  {p.image ? (
+                    <img src={p.image} alt={p.name} className="h-full w-full object-cover" />
+                  ) : (
+                    emojiFor(p.category?.slug ?? undefined)
                   )}
                 </div>
-                <h3 className="mt-2 font-semibold">{p.name}</h3>
-                <p className="mt-1 line-clamp-2 text-sm text-neutral-600">
-                  {p.description}
-                </p>
+
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand">
+                    {p.category?.name}
+                  </span>
+                  {p.featured && <span className="text-xs text-brand">★ Featured</span>}
+                </div>
+
+                <h3 className="mt-2 font-display font-semibold">{p.name}</h3>
+                <p className="mt-1 line-clamp-2 text-sm text-ink-muted">{p.description}</p>
+
+                <div className="mt-3 space-y-1 rounded-lg bg-paper px-3 py-2 font-mono-data text-xs text-ink-muted">
+                  {tierRows(p).length > 0 ? (
+                    tierRows(p).map((t, idx) => (
+                      <div key={t.minQty} className="flex justify-between">
+                        <span>{idx === 1 ? `${t.minQty}+` : t.minQty} units</span>
+                        <span>KES {t.price.toLocaleString()}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex justify-between">
+                      <span>{p.moq}+ units</span>
+                      <span>KES {p.price.toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
+
                 <div className="mt-3 flex items-end justify-between">
                   <div>
-                    <p className="text-xs text-neutral-500">From</p>
-                    <p className="font-bold">KES {bestPrice(p).toLocaleString()}</p>
+                    <p className="text-xs text-ink-muted">From</p>
+                    <p className="font-mono-data font-semibold">
+                      KES {bestPrice(p).toLocaleString()}
+                    </p>
                   </div>
-                  <p className="text-xs text-neutral-500">MOQ {p.moq}</p>
+                  <p className="font-mono-data text-xs text-ink-muted">MOQ {p.moq}</p>
                 </div>
+
                 <div className="mt-3">
                   {p.buyType === "checkout" ? (
                     <button
@@ -187,9 +250,9 @@ export default function Home() {
                           priceTiers: p.priceTiers,
                         })
                       }
-                      className="w-full rounded-lg bg-neutral-900 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+                      className="w-full rounded-lg bg-brand py-2 text-sm font-medium text-white transition hover:brightness-110"
                     >
-                      Add to Cart
+                      Add to cart
                     </button>
                   ) : (
                     <a
@@ -198,9 +261,9 @@ export default function Home() {
                       )}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="block w-full rounded-lg bg-green-600 py-2 text-center text-sm font-medium text-white hover:bg-green-500"
+                      className="block w-full rounded-lg border border-ink py-2 text-center text-sm font-medium text-ink transition hover:bg-ink hover:text-white"
                     >
-                      Enquire on WhatsApp
+                      Enquire
                     </a>
                   )}
                 </div>

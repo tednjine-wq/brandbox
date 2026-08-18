@@ -1,26 +1,47 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --color-ink: #1c1614;
+  --color-brand: #e8492b;
+  --color-paper: #fbf9f6;
+  --color-line: #e7e2dc;
+  --color-stock: #1f7a5c;
+  --color-ink-muted: #6b6560;
+
+  --font-display: "Bricolage Grotesque", "Inter", sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono-data: "IBM Plex Mono", monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+@keyframes bump {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.3); }
+  100% { transform: scale(1); }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.animate-bump { animation: bump 0.3s ease; }
+.animate-fade-up { animation: fade-up 0.45s ease both; }
+
+/* The signature rubber-stamp badge */
+.stamp {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  transform: rotate(6deg);
+  font-family: var(--font-mono-data);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border: 1.5px solid currentColor;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px currentColor;
+  background: rgba(255, 255, 255, 0.85);
 }
+.stamp-stock { color: var(--color-stock); }
+.stamp-order { color: var(--color-brand); }
