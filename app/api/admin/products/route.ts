@@ -48,6 +48,7 @@ export async function POST(request: Request) {
     slug,
     description: String(body.description ?? "") || null,
     image: String(body.image ?? "") || null,
+        images: String(body.images ?? "") || null,
     price,
     moq,
     buyType: body.buyType === "enquiry" ? "enquiry" : "checkout",

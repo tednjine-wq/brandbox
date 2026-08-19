@@ -9,6 +9,7 @@ type Product = {
   name: string;
   description: string | null;
   image: string | null;
+  images: string | null;
   price: number;
   moq: number;
   buyType: string;
@@ -24,11 +25,25 @@ type Product = {
 const inp =
   "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-orange-500";
 
+function parsePhotos(p: Product): string[] {
+  if (p.images) {
+    try {
+      const arr = JSON.parse(p.images);
+      if (Array.isArray(arr) && arr.length > 0) {
+        return arr.filter((x) => typeof x === "string");
+      }
+    } catch {
+      // ignore broken JSON and fall back to cover
+    }
+  }
+  return p.image ? [p.image] : [];
+}
+
 const EMPTY_FORM = {
   id: "",
   name: "",
   description: "",
-  image: "",
+  photos: [] as string[],
   price: "",
   moq: "",
   buyType: "checkout",
@@ -75,7 +90,7 @@ export default function AdminProducts() {
       id: p.id,
       name: p.name,
       description: p.description ?? "",
-      image: p.image ?? "",
+      photos: parsePhotos(p),
       price: String(p.price),
       moq: String(p.moq),
       buyType: p.buyType,
@@ -105,21 +120,32 @@ export default function AdminProducts() {
     setForm({ ...form, tiers: form.tiers.filter((_: any, idx: number) => idx !== i) });
   }
 
-  async function uploadPhoto(e: any) {
-    const f = e.target.files?.[0];
-    if (!f) return;
+  async function uploadPhotos(e: any) {
+    const files: File[] = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
     setUploading(true);
     setError("");
-    const fd = new FormData();
-    fd.append("file", f);
-    const res = await fetch("/api/upload", { method: "POST", body: fd });
-    const data = await res.json();
-    setUploading(false);
-    if (!res.ok) {
-      setError(data.error || "Upload failed");
-      return;
+    try {
+      const urls: string[] = [];
+      for (const f of files) {
+        const fd = new FormData();
+        fd.append("file", f);
+        const res = await fetch("/api/upload", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Upload failed");
+        urls.push(data.url);
+      }
+      setForm({ ...form, photos: [...form.photos, ...urls] });
+    } catch (err: any) {
+      setError(err.message || "Upload failed");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
     }
-    setForm({ ...form, image: data.url });
+  }
+
+  function removePhoto(i: number) {
+    setForm({ ...form, photos: form.photos.filter((_: string, idx: number) => idx !== i) });
   }
 
   async function save() {
@@ -131,7 +157,8 @@ export default function AdminProducts() {
         id: form.id || undefined,
         name: form.name,
         description: form.description,
-        image: form.image || null,
+        image: form.photos[0] || null,
+        images: JSON.stringify(form.photos),
         price: Number(form.price),
         moq: Number(form.moq),
         buyType: form.buyType,
@@ -253,35 +280,43 @@ export default function AdminProducts() {
           </div>
 
           <div className="mt-3">
-            <p className="text-sm font-medium">Product photo</p>
-            <div className="mt-2 flex items-center gap-3">
-              {form.image ? (
-                <img
-                  src={form.image}
-                  alt="preview"
-                  className="h-16 w-16 rounded-lg border border-neutral-300 object-cover"
-                />
-              ) : (
-                <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-dashed border-neutral-300 text-xs text-neutral-400">
-                  No photo
+            <p className="text-sm font-medium">Product photos (first = cover)</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {form.photos.map((url: string, i: number) => (
+                <div key={url} className="relative">
+                  <img
+                    src={url}
+                    alt=""
+                    className="h-16 w-16 rounded-lg border border-neutral-300 object-cover"
+                  />
+                  {i === 0 && (
+                    <span className="absolute bottom-0 left-0 rounded-tr bg-neutral-900 px-1 text-[10px] text-white">
+                      cover
+                    </span>
+                  )}
+                  <button
+                    onClick={() => removePhoto(i)}
+                    className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white"
+                  >
+                    ×
+                  </button>
                 </div>
-              )}
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={uploadPhoto}
-                className="text-sm"
-              />
-              {form.image && (
-                <button
-                  onClick={() => setForm({ ...form, image: "" })}
-                  className="text-xs text-red-500 hover:underline"
-                >
-                  Remove
-                </button>
-              )}
+              ))}
+              <label className="flex h-16 w-16 cursor-pointer items-center justify-center rounded-lg border border-dashed border-neutral-300 text-xs text-neutral-400 hover:border-neutral-500">
+                + Add
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  multiple
+                  onChange={uploadPhotos}
+                  className="hidden"
+                />
+              </label>
             </div>
             {uploading && <p className="mt-1 text-xs text-neutral-500">Uploading...</p>}
+            <p className="mt-1 text-xs text-neutral-500">
+              Tip: one photo per colour works great — clients can flip through them on the card.
+            </p>
           </div>
 
           <textarea
