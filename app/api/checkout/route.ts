@@ -49,6 +49,10 @@ export async function POST(request: Request) {
       });
     }
 
+    // VAT: catalog prices are exclusive; 16% is added at checkout (UMBA quotation model)
+    const vat = Math.round(total * 0.16);
+    const grandTotal = total + vat;
+
     const orderNumber = `BB-${Date.now().toString().slice(-6)}`;
 
     const order = await prisma.order.create({
@@ -57,14 +61,15 @@ export async function POST(request: Request) {
         customerName,
         customerPhone,
         status: "pending",
-        totalAmount: total,
+        totalAmount: grandTotal,
         items: { create: orderItems },
       },
     });
 
-    // SIMULATION MODE: real Daraja STK push comes in Phase 2
     return NextResponse.json({
       orderNumber: order.orderNumber,
+      subtotal: total,
+      vat,
       totalAmount: order.totalAmount,
       status: order.status,
       simulation: true,

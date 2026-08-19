@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { vatBreakdown } from "@/lib/vat";
 
 type Tier = { minQty: number; price: number };
 type Product = {
@@ -77,6 +78,8 @@ export default function ProductModal({
   const current = photos.length > 0 ? photos[Math.min(idx, photos.length - 1)] : null;
   const quantity = Math.max(qty || product.moq, product.moq);
   const unit = effectivePrice(product, quantity);
+  const lineTotal = unit * quantity;
+  const breakdown = vatBreakdown(lineTotal);
   const tiers = [...product.priceTiers].sort((a, b) => a.minQty - b.minQty);
   const colours = product.colours
     ? product.colours.split(",").map((c) => c.trim()).filter(Boolean)
@@ -96,7 +99,7 @@ export default function ProductModal({
       >
         <div className="relative flex h-56 items-center justify-center bg-paper text-6xl sm:h-64">
           {current ? (
-            <img src={current} alt={product.name} className="h-full w-full object-contain" />
+            <img src={current} alt={product.name} className="h-full w-full object-contain p-2" />
           ) : (
             "📦"
           )}
@@ -124,7 +127,7 @@ export default function ProductModal({
                     : "border-line opacity-70 hover:opacity-100"
                 }`}
               >
-                <img src={url} alt="" className="h-full w-full object-contain" />
+                <img src={url} alt="" className="h-full w-full object-contain bg-white" />
               </button>
             ))}
           </div>
@@ -155,7 +158,7 @@ export default function ProductModal({
           )}
 
           <div className="mt-4">
-            <p className="text-sm font-medium">Bulk pricing</p>
+            <p className="text-sm font-medium">Bulk pricing (excl. VAT)</p>
             <div className="mt-2 space-y-1.5">
               {tiers.length === 0 && (
                 <div className="flex justify-between rounded-lg bg-paper px-3 py-2 font-mono-data text-sm">
@@ -216,12 +219,17 @@ export default function ProductModal({
               <p className="text-xs text-ink-muted">
                 {quantity} units × KES {unit.toLocaleString()}
               </p>
+              <p className="text-xs text-ink-muted">
+                + VAT 16%: KES {breakdown.vat.toLocaleString()}
+              </p>
               <p className="font-mono-data text-lg font-bold">
-                KES {(unit * quantity).toLocaleString()}
+                KES {breakdown.total.toLocaleString()}
               </p>
             </div>
           </div>
-          <p className="mt-1 text-xs text-ink-muted">MOQ {product.moq} units</p>
+          <p className="mt-1 text-xs text-ink-muted">
+            MOQ {product.moq} units · Prices exclude 16% VAT, added at checkout
+          </p>
 
           <div className="mt-4">
             {product.buyType === "checkout" ? (
@@ -242,7 +250,7 @@ export default function ProductModal({
                 }}
                 className="w-full rounded-lg bg-brand py-3 text-sm font-semibold text-white hover:brightness-110"
               >
-                Add to cart — KES {(unit * quantity).toLocaleString()}
+                Add to cart — KES {breakdown.total.toLocaleString()}
               </button>
             ) : (
               <a

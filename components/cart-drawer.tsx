@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { getCartTotal, getEffectivePrice, useCartStore } from "@/lib/cart-store";
+import { vatBreakdown } from "@/lib/vat";
 
 type Stage = "cart" | "form" | "payment" | "done";
 
@@ -19,6 +20,9 @@ export default function CartDrawer() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [order, setOrder] = useState<{ orderNumber: string; totalAmount: number } | null>(null);
+
+  const subtotal = getCartTotal(items);
+  const breakdown = vatBreakdown(subtotal);
 
   async function placeOrder() {
     setBusy(true);
@@ -49,11 +53,7 @@ export default function CartDrawer() {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch("/api/orders/confirm", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ orderNumber: order.orderNumber }),
-});
+      const res = await fetch(`/api/orders/${order.orderNumber}/confirm`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Payment simulation failed");
       setStage("done");
@@ -101,7 +101,9 @@ export default function CartDrawer() {
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="font-medium">{item.product.name}</p>
-                        <p className="text-xs text-neutral-500">KES {unit.toLocaleString()} per unit</p>
+                        <p className="text-xs text-neutral-500">
+                          KES {unit.toLocaleString()} per unit (excl. VAT)
+                        </p>
                       </div>
                       <button
                         onClick={() => removeItem(item.product.id)}
@@ -143,7 +145,9 @@ export default function CartDrawer() {
           {stage === "payment" && order && (
             <div className="rounded-lg border border-neutral-200 p-4 text-sm">
               <p className="font-semibold">Order {order.orderNumber}</p>
-              <p className="mt-1 text-neutral-600">Total: KES {order.totalAmount.toLocaleString()}</p>
+              <p className="mt-1 text-neutral-600">
+                Total (incl. 16% VAT): KES {order.totalAmount.toLocaleString()}
+              </p>
               <p className="mt-3 text-neutral-600">
                 In production, an M-Pesa prompt would now appear on {phone}. We are in SIMULATION
                 mode, so click the green button below to pretend you entered your PIN.
@@ -168,9 +172,19 @@ export default function CartDrawer() {
 
           {stage === "cart" && (
             <>
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-neutral-600">Total</span>
-                <span className="text-lg font-bold">KES {getCartTotal(items).toLocaleString()}</span>
+              <div className="mb-2 space-y-1 text-sm">
+                <div className="flex justify-between text-neutral-600">
+                  <span>Subtotal</span>
+                  <span>KES {breakdown.subtotal.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-neutral-600">
+                  <span>VAT (16%)</span>
+                  <span>KES {breakdown.vat.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-neutral-600">Total (incl. VAT)</span>
+                  <span className="text-lg font-bold">KES {breakdown.total.toLocaleString()}</span>
+                </div>
               </div>
               <button
                 disabled={items.length === 0}
@@ -201,7 +215,7 @@ export default function CartDrawer() {
                 onClick={placeOrder}
                 className="w-full rounded-lg bg-neutral-900 py-2.5 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-40"
               >
-                {busy ? "Placing order..." : `Place Order - KES ${getCartTotal(items).toLocaleString()}`}
+                {busy ? "Placing order..." : `Place Order - KES ${breakdown.total.toLocaleString()}`}
               </button>
               <button
                 onClick={() => setStage("cart")}

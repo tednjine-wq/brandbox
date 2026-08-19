@@ -82,8 +82,9 @@ export default function SiteFooter() {
                 <li>M-Pesa (Lipa na M-Pesa)</li>
                 <li>Bank transfer (on request)</li>
               </ul>
-              <p className="mt-4 text-xs text-white/50">
-                3–7 day turnaround on standard orders.
+              <p className="mt-4 text-xs text-white/50">3–7 day turnaround on standard orders.</p>
+              <p className="mt-1 text-xs text-white/50">
+                Prices exclude 16% VAT — VAT is added at checkout.
               </p>
             </div>
           </div>
