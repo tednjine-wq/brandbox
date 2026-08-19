@@ -1,187 +1,363 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import AdminCategories from "@/components/admin-categories";
-import AdminKpis from "@/components/admin-kpis";
-import AdminProducts from "@/components/admin-products";
+import { useEffect, useRef, useState } from "react";
+import CartDrawer from "@/components/cart-drawer";
+import ProductModal from "@/components/product-modal";
+import SiteFooter from "@/components/site-footer";
+import { useCartStore } from "@/lib/cart-store";
 
-type AdminOrder = {
+const WHATSAPP_NUMBER = "254712345678"; // TODO: replace with your real WhatsApp business number
+
+type Category = { id: string; name: string; slug: string };
+type PriceTier = { minQty: number; price: number };
+type Product = {
   id: string;
-  orderNumber: string;
-  customerName: string;
-  customerPhone: string;
-  status: string;
-  totalAmount: number;
-  items: { productName: string; quantity: number }[];
+  name: string;
+  slug: string;
+  description: string | null;
+  image: string | null;
+  images: string | null;
+  price: number;
+  moq: number;
+  buyType: string;
+  colours: string | null;
+  printingType: string | null;
+  featured: boolean;
+  category: Category | null;
+  priceTiers: PriceTier[];
 };
 
-const STATUSES = ["pending", "confirmed", "production", "delivered"];
-
-const STATUS_STYLES: Record<string, string> = {
-  pending: "border-yellow-300 bg-yellow-100 text-yellow-800",
-  confirmed: "border-blue-300 bg-blue-100 text-blue-800",
-  production: "border-purple-300 bg-purple-100 text-purple-800",
-  delivered: "border-green-300 bg-green-100 text-green-800",
+type CartAdd = {
+  id: string;
+  name: string;
+  price: number;
+  moq: number;
+  buyType: string;
+  priceTiers: PriceTier[];
 };
 
-export default function AdminPage() {
-  const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [orders, setOrders] = useState<AdminOrder[]>([]);
+function pill(active: boolean) {
+  return `whitespace-nowrap rounded-full border px-4 py-1.5 text-sm font-medium transition ${
+    active
+      ? "border-brand bg-brand text-white"
+      : "border-line bg-white text-ink-muted hover:border-ink-muted"
+  }`;
+}
 
-  useEffect(() => {
-    fetch("/api/admin/session").then((r) => r.json()).then((d) => setLoggedIn(d.loggedIn));
-  }, []);
-
-  async function login() {
-    setError("");
-    const res = await fetch("/api/admin/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
-    const data = await res.json();
-    if (res.ok) setLoggedIn(true);
-    else setError(data.error || "Login failed");
+function emojiFor(slug?: string) {
+  switch (slug) {
+    case "drinkware": return "☕";
+    case "apparel": return "👕";
+    case "stationery": return "🖊️";
+    case "bags": return "🎒";
+    case "tech-accessories": return "💾";
+    case "event-items": return "🎪";
+    default: return "📦";
   }
+}
 
-  async function loadOrders() {
-    const res = await fetch("/api/admin/orders");
-    const data = await res.json();
-    if (res.ok) setOrders(data.orders);
+function bestPrice(p: Product) {
+  if (p.priceTiers.length > 0) {
+    return Math.min(...p.priceTiers.map((t) => t.price));
   }
+  return p.price;
+}
 
-  useEffect(() => {
-    if (loggedIn) loadOrders();
-  }, [loggedIn]);
+function tierRows(p: Product): PriceTier[] {
+  const tiers = [...p.priceTiers].sort((a, b) => a.minQty - b.minQty);
+  if (tiers.length === 0) return [];
+  const first = tiers[0];
+  const last = tiers[tiers.length - 1];
+  return last.minQty === first.minQty ? [first] : [first, last];
+}
 
-  async function updateStatus(orderNumber: string, status: string) {
-    await fetch("/api/admin/orders/status", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderNumber, status }),
-    });
-    loadOrders();
-    window.dispatchEvent(new Event("brandbox:refresh"));
+function parsePhotos(p: Product): string[] {
+  if (p.images) {
+    try {
+      const arr = JSON.parse(p.images);
+      if (Array.isArray(arr) && arr.length > 0) {
+        return arr.filter((x) => typeof x === "string");
+      }
+    } catch {
+      // fall back to cover
+    }
   }
+  return p.image ? [p.image] : [];
+}
 
-  if (loggedIn === null) return <main className="min-h-screen bg-neutral-50" />;
-
-  if (!loggedIn) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
-        <div className="w-full max-w-sm rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
-          <h1 className="text-xl font-bold">
-            Brand<span className="text-orange-600">Box</span> Admin
-          </h1>
-          <p className="mt-1 text-sm text-neutral-500">Sign in to manage your shop.</p>
-          <div className="mt-4 space-y-2">
-            <input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Username"
-              className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-orange-500"
-            />
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password"
-              className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-orange-500"
-            />
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <button
-              onClick={login}
-              className="w-full rounded-lg bg-neutral-900 py-2 text-sm font-medium text-white hover:bg-neutral-700"
-            >
-              Sign In
-            </button>
-          </div>
-        </div>
-      </main>
-    );
-  }
+function ProductCard({
+  p,
+  i,
+  onAdd,
+  onOpen,
+}: {
+  p: Product;
+  i: number;
+  onAdd: (item: CartAdd) => void;
+  onOpen: () => void;
+}) {
+  const photos = parsePhotos(p);
+  const [idx, setIdx] = useState(0);
+  const current = photos.length > 0 ? photos[Math.min(idx, photos.length - 1)] : null;
 
   return (
-    <main className="min-h-screen bg-neutral-50 text-neutral-900">
-      <header className="border-b border-neutral-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <h1 className="text-xl font-bold">
-            Brand<span className="text-orange-600">Box</span> Admin
-          </h1>
-          <a href="/" className="text-sm text-neutral-500 hover:text-neutral-900">
-            ← Back to store
+    <div
+      onClick={onOpen}
+      style={{ animationDelay: `${Math.min(i, 11) * 40}ms` }}
+      className="animate-fade-up relative cursor-pointer rounded-xl border border-line bg-white p-4 transition hover:-translate-y-0.5 hover:border-brand"
+    >
+      <span className={`stamp ${p.buyType === "checkout" ? "stamp-stock" : "stamp-order"}`}>
+        {p.buyType === "checkout" ? "In stock" : "Made to order"}
+      </span>
+
+      <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg border border-line bg-paper text-4xl">
+        {current ? (
+          <img src={current} alt={p.name} className="h-full w-full object-contain p-2" />
+        ) : (
+          emojiFor(p.category?.slug ?? undefined)
+        )}
+      </div>
+
+      {photos.length > 1 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {photos.map((url, j) => (
+            <button
+              key={url}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIdx(j);
+              }}
+              aria-label={`View photo ${j + 1} of ${p.name}`}
+              className={`h-9 w-9 overflow-hidden rounded-md border-2 transition ${
+                j === Math.min(idx, photos.length - 1)
+                  ? "border-brand"
+                  : "border-line opacity-70 hover:opacity-100"
+              }`}
+            >
+              <img src={url} alt="" className="h-full w-full object-contain bg-white" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 flex items-center justify-between">
+        <span className="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand">
+          {p.category?.name}
+        </span>
+        {p.featured && <span className="text-xs text-brand">★ Featured</span>}
+      </div>
+
+      <h3 className="mt-2 font-display font-semibold">{p.name}</h3>
+      <p className="mt-1 line-clamp-2 text-sm text-ink-muted">{p.description}</p>
+
+      <div className="mt-3 space-y-1 rounded-lg bg-paper px-3 py-2 font-mono-data text-xs text-ink-muted">
+        {tierRows(p).length > 0 ? (
+          tierRows(p).map((t, index) => (
+            <div key={t.minQty} className="flex justify-between">
+              <span>{index === 1 ? `${t.minQty}+` : t.minQty} units</span>
+              <span>KES {t.price.toLocaleString()}</span>
+            </div>
+          ))
+        ) : (
+          <div className="flex justify-between">
+            <span>{p.moq}+ units</span>
+            <span>KES {p.price.toLocaleString()}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-3 flex items-end justify-between">
+        <div>
+          <p className="text-xs text-ink-muted">From</p>
+          <p className="font-mono-data font-semibold">KES {bestPrice(p).toLocaleString()}</p>
+        </div>
+        <p className="font-mono-data text-xs text-ink-muted">MOQ {p.moq}</p>
+      </div>
+
+      <div className="mt-3">
+        {p.buyType === "checkout" ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAdd({
+                id: p.id,
+                name: p.name,
+                price: p.price,
+                moq: p.moq,
+                buyType: p.buyType,
+                priceTiers: p.priceTiers,
+              });
+            }}
+            className="w-full rounded-lg bg-brand py-2 text-sm font-medium text-white transition hover:brightness-110"
+          >
+            Add to cart
+          </button>
+        ) : (
+          <a
+            onClick={(e) => e.stopPropagation()}
+            href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
+              `Hello BrandBox! I'm interested in ${p.name} (MOQ ${p.moq}). Please share a quote.`
+            )}`}
+            target="_blank"
+            rel="noreferrer"
+            className="block w-full rounded-lg border border-ink py-2 text-center text-sm font-medium text-ink transition hover:bg-ink hover:text-white"
+          >
+            Enquire
           </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function Home() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [hero, setHero] = useState({ products: 0, categories: 0 });
+  const [selected, setSelected] = useState<Product | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  const items = useCartStore((s) => s.items);
+  const openCart = useCartStore((s) => s.openCart);
+  const addItem = useCartStore((s) => s.addItem);
+  const cartCount = items.length;
+
+  useEffect(() => {
+    fetch("/api/categories")
+      .then((r) => r.json())
+      .then((d) => setCategories(d.categories));
+
+    fetch("/api/products")
+      .then((r) => r.json())
+      .then((d) => {
+        const all: Product[] = d.products ?? [];
+        const stocked = new Set(all.map((p) => p.category?.id).filter(Boolean));
+        setHero({ products: all.length, categories: stocked.size });
+      });
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (search) params.set("search", search);
+      if (category) params.set("category", category);
+      const res = await fetch(`/api/products?${params.toString()}`);
+      const data = await res.json();
+      setProducts(data.products);
+      setLoading(false);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search, category]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const t = e.target as HTMLElement;
+      const typing = t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement;
+      if ((e.key === "/" && !typing) || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k")) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  return (
+    <main className="min-h-screen bg-paper text-ink">
+      <header className="sticky top-0 z-10 bg-ink text-white">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3">
+          <h1 className="font-display text-xl font-bold tracking-tight">
+            Brand<span className="text-brand">Box</span>
+          </h1>
+
+          <div className="relative order-3 w-full sm:order-2 sm:ml-auto sm:w-auto sm:max-w-md sm:flex-1">
+            <input
+              ref={searchRef}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search mugs, pens, tote bags..."
+              className="w-full rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm outline-none placeholder:text-white/40 focus:border-brand"
+            />
+            <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded border border-white/20 px-1.5 text-[10px] text-white/50">
+              /
+            </kbd>
+          </div>
+
+          <button
+            onClick={openCart}
+            className="relative ml-auto rounded-full border border-white/20 px-4 py-1.5 text-sm font-medium transition hover:border-brand sm:ml-0"
+          >
+            Cart
+            {cartCount > 0 && (
+              <span
+                key={cartCount}
+                className="animate-bump absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1 text-xs font-bold text-white"
+              >
+                {cartCount}
+              </span>
+            )}
+          </button>
         </div>
       </header>
 
-      <AdminKpis />
-
-      <section className="mx-auto max-w-6xl px-4 py-6">
-        <h2 className="text-lg font-semibold">Orders</h2>
-        <p className="text-sm text-neutral-500">
-          Update each order as it moves through fulfilment.
+      <section className="mx-auto max-w-6xl px-4 pb-6 pt-10">
+        <h2 className="font-display text-3xl font-bold sm:text-4xl">
+          Promotional products with transparent bulk pricing
+        </h2>
+        <p className="mt-2 text-ink-muted">
+          {hero.products} products across {hero.categories} categories.
         </p>
-
-        <div className="mt-4 overflow-x-auto rounded-xl border border-neutral-200 bg-white">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase text-neutral-500">
-              <tr>
-                <th className="px-4 py-2">Order</th>
-                <th className="px-4 py-2">Customer</th>
-                <th className="px-4 py-2">Items</th>
-                <th className="px-4 py-2">Total</th>
-                <th className="px-4 py-2">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-neutral-500">
-                    No orders yet.
-                  </td>
-                </tr>
-              ) : (
-                orders.map((o) => (
-                  <tr key={o.id} className="border-b border-neutral-100 last:border-0">
-                    <td className="px-4 py-3 font-mono text-xs">{o.orderNumber}</td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium">{o.customerName}</p>
-                      <p className="text-xs text-neutral-500">{o.customerPhone}</p>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-neutral-600">
-                      {o.items.map((i) => `${i.productName} x${i.quantity}`).join(", ")}
-                    </td>
-                    <td className="px-4 py-3 font-semibold">
-                      KES {o.totalAmount.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={o.status}
-                        onChange={(e) => updateStatus(o.orderNumber, e.target.value)}
-                        className={`rounded-lg border px-2 py-1 text-xs font-medium ${
-                          STATUS_STYLES[o.status] ?? "border-neutral-300 bg-white text-neutral-700"
-                        }`}
-                      >
-                        {STATUSES.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
       </section>
 
-      <AdminCategories />
-      <AdminProducts />
+      <div className="mx-auto flex max-w-6xl gap-2 overflow-x-auto px-4 pb-6">
+        <button onClick={() => setCategory(null)} className={pill(!category)}>
+          All
+        </button>
+        {categories.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => setCategory(c.slug)}
+            className={pill(category === c.slug)}
+          >
+            {c.name}
+          </button>
+        ))}
+      </div>
+
+      <section className="mx-auto max-w-6xl px-4 pb-16">
+        {loading ? (
+          <p className="py-20 text-center text-ink-muted">Loading products...</p>
+        ) : products.length === 0 ? (
+          <p className="py-20 text-center text-ink-muted">No products match your search.</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {products.map((p, i) => (
+              <ProductCard
+                key={p.id}
+                p={p}
+                i={i}
+                onAdd={(item) => addItem(item)}
+                onOpen={() => setSelected(p)}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <SiteFooter />
+
+      <ProductModal
+        product={selected}
+        onClose={() => setSelected(null)}
+        onAdd={(item, quantity) => addItem(item, quantity)}
+        whatsapp={WHATSAPP_NUMBER}
+      />
+
+      <CartDrawer />
     </main>
   );
 }

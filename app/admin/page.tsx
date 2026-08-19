@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import AdminCategories from "@/components/admin-categories";
+import AdminKpis from "@/components/admin-kpis";
 import AdminProducts from "@/components/admin-products";
 
 type AdminOrder = {
@@ -15,6 +16,13 @@ type AdminOrder = {
 };
 
 const STATUSES = ["pending", "confirmed", "production", "delivered"];
+
+const STATUS_STYLES: Record<string, string> = {
+  pending: "border-yellow-300 bg-yellow-100 text-yellow-800",
+  confirmed: "border-blue-300 bg-blue-100 text-blue-800",
+  production: "border-purple-300 bg-purple-100 text-purple-800",
+  delivered: "border-green-300 bg-green-100 text-green-800",
+};
 
 export default function AdminPage() {
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
@@ -56,6 +64,7 @@ export default function AdminPage() {
       body: JSON.stringify({ orderNumber, status }),
     });
     loadOrders();
+    window.dispatchEvent(new Event("brandbox:refresh"));
   }
 
   if (loggedIn === null) return <main className="min-h-screen bg-neutral-50" />;
@@ -108,6 +117,8 @@ export default function AdminPage() {
         </div>
       </header>
 
+      <AdminKpis />
+
       <section className="mx-auto max-w-6xl px-4 py-6">
         <h2 className="text-lg font-semibold">Orders</h2>
         <p className="text-sm text-neutral-500">
@@ -150,7 +161,9 @@ export default function AdminPage() {
                       <select
                         value={o.status}
                         onChange={(e) => updateStatus(o.orderNumber, e.target.value)}
-                        className="rounded-lg border border-neutral-300 px-2 py-1 text-xs"
+                        className={`rounded-lg border px-2 py-1 text-xs font-medium ${
+                          STATUS_STYLES[o.status] ?? "border-neutral-300 bg-white text-neutral-700"
+                        }`}
                       >
                         {STATUSES.map((s) => (
                           <option key={s} value={s}>
@@ -166,8 +179,9 @@ export default function AdminPage() {
           </table>
         </div>
       </section>
+
       <AdminCategories />
-            <AdminProducts />
+      <AdminProducts />
     </main>
   );
 }
