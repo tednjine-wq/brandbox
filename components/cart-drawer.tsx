@@ -53,7 +53,11 @@ export default function CartDrawer() {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch(`/api/orders/${order.orderNumber}/confirm`, { method: "POST" });
+      const res = await fetch("/api/orders/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderNumber: order.orderNumber }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Payment simulation failed");
       setStage("done");
