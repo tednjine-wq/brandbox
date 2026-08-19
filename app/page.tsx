@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import CartDrawer from "@/components/cart-drawer";
+import ProductModal from "@/components/product-modal";
 import { useCartStore } from "@/lib/cart-store";
 
 const WHATSAPP_NUMBER = "254712345678"; // TODO: replace with your real WhatsApp business number
@@ -14,11 +15,23 @@ type Product = {
   slug: string;
   description: string | null;
   image: string | null;
+  images: string | null;
   price: number;
   moq: number;
   buyType: string;
+  colours: string | null;
+  printingType: string | null;
   featured: boolean;
   category: Category | null;
+  priceTiers: PriceTier[];
+};
+
+type CartAdd = {
+  id: string;
+  name: string;
+  price: number;
+  moq: number;
+  buyType: string;
   priceTiers: PriceTier[];
 };
 
@@ -57,6 +70,145 @@ function tierRows(p: Product): PriceTier[] {
   return last.minQty === first.minQty ? [first] : [first, last];
 }
 
+function parsePhotos(p: Product): string[] {
+  if (p.images) {
+    try {
+      const arr = JSON.parse(p.images);
+      if (Array.isArray(arr) && arr.length > 0) {
+        return arr.filter((x) => typeof x === "string");
+      }
+    } catch {
+      // fall back to cover
+    }
+  }
+  return p.image ? [p.image] : [];
+}
+
+function ProductCard({
+  p,
+  i,
+  onAdd,
+  onOpen,
+}: {
+  p: Product;
+  i: number;
+  onAdd: (item: CartAdd) => void;
+  onOpen: () => void;
+}) {
+  const photos = parsePhotos(p);
+  const [idx, setIdx] = useState(0);
+  const current = photos.length > 0 ? photos[Math.min(idx, photos.length - 1)] : null;
+
+  return (
+    <div
+      onClick={onOpen}
+      style={{ animationDelay: `${Math.min(i, 11) * 40}ms` }}
+      className="animate-fade-up relative cursor-pointer rounded-xl border border-line bg-white p-4 transition hover:-translate-y-0.5 hover:border-brand"
+    >
+      <span className={`stamp ${p.buyType === "checkout" ? "stamp-stock" : "stamp-order"}`}>
+        {p.buyType === "checkout" ? "In stock" : "Made to order"}
+      </span>
+
+      <div className="flex h-28 items-center justify-center overflow-hidden rounded-lg border border-line bg-paper text-4xl">
+        {current ? (
+          <img src={current} alt={p.name} className="h-full w-full object-contain" />
+        ) : (
+          emojiFor(p.category?.slug ?? undefined)
+        )}
+      </div>
+
+      {photos.length > 1 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {photos.map((url, j) => (
+            <button
+              key={url}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIdx(j);
+              }}
+              aria-label={`View photo ${j + 1} of ${p.name}`}
+              className={`h-9 w-9 overflow-hidden rounded-md border-2 transition ${
+                j === Math.min(idx, photos.length - 1)
+                  ? "border-brand"
+                  : "border-line opacity-70 hover:opacity-100"
+              }`}
+            >
+              <img src={url} alt="" className="h-full w-full object-contain" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 flex items-center justify-between">
+        <span className="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand">
+          {p.category?.name}
+        </span>
+        {p.featured && <span className="text-xs text-brand">★ Featured</span>}
+      </div>
+
+      <h3 className="mt-2 font-display font-semibold">{p.name}</h3>
+      <p className="mt-1 line-clamp-2 text-sm text-ink-muted">{p.description}</p>
+
+      <div className="mt-3 space-y-1 rounded-lg bg-paper px-3 py-2 font-mono-data text-xs text-ink-muted">
+        {tierRows(p).length > 0 ? (
+          tierRows(p).map((t, index) => (
+            <div key={t.minQty} className="flex justify-between">
+              <span>{index === 1 ? `${t.minQty}+` : t.minQty} units</span>
+              <span>KES {t.price.toLocaleString()}</span>
+            </div>
+          ))
+        ) : (
+          <div className="flex justify-between">
+            <span>{p.moq}+ units</span>
+            <span>KES {p.price.toLocaleString()}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-3 flex items-end justify-between">
+        <div>
+          <p className="text-xs text-ink-muted">From</p>
+          <p className="font-mono-data font-semibold">KES {bestPrice(p).toLocaleString()}</p>
+        </div>
+        <p className="font-mono-data text-xs text-ink-muted">MOQ {p.moq}</p>
+      </div>
+
+      <div className="mt-3">
+        {p.buyType === "checkout" ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAdd({
+                id: p.id,
+                name: p.name,
+                price: p.price,
+                moq: p.moq,
+                buyType: p.buyType,
+                priceTiers: p.priceTiers,
+              });
+            }}
+            className="w-full rounded-lg bg-brand py-2 text-sm font-medium text-white transition hover:brightness-110"
+          >
+            Add to cart
+          </button>
+        ) : (
+          <a
+            onClick={(e) => e.stopPropagation()}
+            href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
+              `Hello BrandBox! I'm interested in ${p.name} (MOQ ${p.moq}). Please share a quote.`
+            )}`}
+            target="_blank"
+            rel="noreferrer"
+            className="block w-full rounded-lg border border-ink py-2 text-center text-sm font-medium text-ink transition hover:bg-ink hover:text-white"
+          >
+            Enquire
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -64,6 +216,7 @@ export default function Home() {
   const [category, setCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [hero, setHero] = useState({ products: 0, categories: 0 });
+  const [selected, setSelected] = useState<Product | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const items = useCartStore((s) => s.items);
@@ -76,7 +229,6 @@ export default function Home() {
       .then((r) => r.json())
       .then((d) => setCategories(d.categories));
 
-    // Hero counts: only categories that actually have products (fixes the "60 categories" bug)
     fetch("/api/products")
       .then((r) => r.json())
       .then((d) => {
@@ -100,7 +252,6 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [search, category]);
 
-  // "/" or Ctrl/Cmd+K focuses the search command bar
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const t = e.target as HTMLElement;
@@ -184,94 +335,24 @@ export default function Home() {
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {products.map((p, i) => (
-              <div
+              <ProductCard
                 key={p.id}
-                style={{ animationDelay: `${Math.min(i, 11) * 40}ms` }}
-                className="animate-fade-up relative rounded-xl border border-line bg-white p-4 transition hover:-translate-y-0.5 hover:border-brand"
-              >
-                <span className={`stamp ${p.buyType === "checkout" ? "stamp-stock" : "stamp-order"}`}>
-                  {p.buyType === "checkout" ? "In stock" : "Made to order"}
-                </span>
-
-                <div className="flex h-28 items-center justify-center overflow-hidden rounded-lg border border-line bg-paper text-4xl">
-                  {p.image ? (
-                    <img src={p.image} alt={p.name} className="h-full w-full object-cover" />
-                  ) : (
-                    emojiFor(p.category?.slug ?? undefined)
-                  )}
-                </div>
-
-                <div className="mt-3 flex items-center justify-between">
-                  <span className="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand">
-                    {p.category?.name}
-                  </span>
-                  {p.featured && <span className="text-xs text-brand">★ Featured</span>}
-                </div>
-
-                <h3 className="mt-2 font-display font-semibold">{p.name}</h3>
-                <p className="mt-1 line-clamp-2 text-sm text-ink-muted">{p.description}</p>
-
-                <div className="mt-3 space-y-1 rounded-lg bg-paper px-3 py-2 font-mono-data text-xs text-ink-muted">
-                  {tierRows(p).length > 0 ? (
-                    tierRows(p).map((t, idx) => (
-                      <div key={t.minQty} className="flex justify-between">
-                        <span>{idx === 1 ? `${t.minQty}+` : t.minQty} units</span>
-                        <span>KES {t.price.toLocaleString()}</span>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="flex justify-between">
-                      <span>{p.moq}+ units</span>
-                      <span>KES {p.price.toLocaleString()}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-3 flex items-end justify-between">
-                  <div>
-                    <p className="text-xs text-ink-muted">From</p>
-                    <p className="font-mono-data font-semibold">
-                      KES {bestPrice(p).toLocaleString()}
-                    </p>
-                  </div>
-                  <p className="font-mono-data text-xs text-ink-muted">MOQ {p.moq}</p>
-                </div>
-
-                <div className="mt-3">
-                  {p.buyType === "checkout" ? (
-                    <button
-                      onClick={() =>
-                        addItem({
-                          id: p.id,
-                          name: p.name,
-                          price: p.price,
-                          moq: p.moq,
-                          buyType: p.buyType,
-                          priceTiers: p.priceTiers,
-                        })
-                      }
-                      className="w-full rounded-lg bg-brand py-2 text-sm font-medium text-white transition hover:brightness-110"
-                    >
-                      Add to cart
-                    </button>
-                  ) : (
-                    <a
-                      href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
-                        `Hello BrandBox! I'm interested in ${p.name} (MOQ ${p.moq}). Please share a quote.`
-                      )}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block w-full rounded-lg border border-ink py-2 text-center text-sm font-medium text-ink transition hover:bg-ink hover:text-white"
-                    >
-                      Enquire
-                    </a>
-                  )}
-                </div>
-              </div>
+                p={p}
+                i={i}
+                onAdd={(item) => addItem(item)}
+                onOpen={() => setSelected(p)}
+              />
             ))}
           </div>
         )}
       </section>
+
+      <ProductModal
+        product={selected}
+        onClose={() => setSelected(null)}
+        onAdd={(item, quantity) => addItem(item, quantity)}
+        whatsapp={WHATSAPP_NUMBER}
+      />
 
       <CartDrawer />
     </main>

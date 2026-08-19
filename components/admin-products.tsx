@@ -287,7 +287,7 @@ export default function AdminProducts() {
                   <img
                     src={url}
                     alt=""
-                    className="h-16 w-16 rounded-lg border border-neutral-300 object-cover"
+                    className="h-16 w-16 rounded-lg border border-neutral-300 object-contain"
                   />
                   {i === 0 && (
                     <span className="absolute bottom-0 left-0 rounded-tr bg-neutral-900 px-1 text-[10px] text-white">
